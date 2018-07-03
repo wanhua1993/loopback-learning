@@ -369,45 +369,48 @@ var user = loopback.Model.extend('user', properties, options);
 ```
     
 
-> 获取相关模型的实例 --------> 关系RESTAPI
-    1、 按照从一个模型到另一个模型的关系来获取关联模型的实例
+>> 获取相关模型的实例 --------> 关系RESTAPI
++    1、 按照从一个模型到另一个模型的关系来获取关联模型的实例
         GET /<model1-name>/<instanceID>/<model2-name>
         <instanceID> - model1中的实例ID。
         <model1-name> - 第一个模型的名称。 
         <model2-name> - 第二个相关模型的名称。
-    2、 获取许多相关的模型实例
++    2、 获取许多相关的模型实例
         列出<model-name> 由instance-IDhasMany关系标识的指定的相关模型实例
         GET /<model-name>/<instance-ID>/<hasManyRelationName>
 
-    3、 创建hasMany相关模型实例
++    3、 创建hasMany相关模型实例
         为hasMany关系创建<model-name>由 指定的指定的相关模型实例 <instance-ID>。
         POST /<model1-name>/<instance-ID>/<hasMany-Relation-Name>
 
-    4、 删除有许多相关的模型实例
++    4、 删除有许多相关的模型实例
         删除指定的相关模型实例  由`确定`，因为有很多关系。
         DELETE /<model1-name>/<instance-ID>/<hasMany-relation-name>
 
-    5、 列出属于相关模型实例 
++    5、 列出属于相关模型实例 
         列出由<instance-ID>hasMany关系标识的给定模型的相关模型实例。
         GET /model-name/<instance-ID>/<belongsTo-relation-name>
 
-    6、 关系之后的聚合模型
++    6、 关系之后的聚合模型
         通常需要在对查询的响应中包含相关的模型实例，以便客户端不必进行多次调用。
         GET /<model1-name>?filter[include]=...
         include - 描述要包含的关系层次的对象
 
+```    
     GET /api/members?filter[include]=posts
     GET /api/members?filter[include][posts]=author
     GET /api/members?filter[include][posts]=author&filter[where][age]=21
     GET /api/members?filter[include][posts]=author&filter[limit]=2
     GET /api/members?filter[include]=posts&filter[include]=passports    
     Report.findById(1, {include: 'lineitems'});
->   角色 REST API
+ ```
+>>   角色 REST API
 
 ## 远程钩子 
     1、beforeRemote     在远程方法之前运行   
     2、afterRemote      在远程方法成功完成后运行。
     3、afterRemoteError 在远程方法完成并发生错误后运行
+    
 ```
     modelName.beforeRemote( methodName, function( ctx, next) {
         //...
@@ -475,3 +478,105 @@ var user = loopback.Model.extend('user', properties, options);
     
     1、接口调用执行前和执行后，分别对应 beforeRemote 和 afterRemote；
     2、CRUD 操作前或后，注册的方法被执行；
+
+## 中间件
+注册中间件的方法：
++ 在middleware.json中注册中间件
++ 在JavaScript中注册中间件 
+
+预定义的阶段是：
+
++ initial - 中间件可以运行的第一个点。
++ session - 准备会话对象。
++ auth - 处理身份验证和授权。
++ parse - 解析请求正文。
++ routes - 实现应用程序逻辑的HTTP路由。通过快递API注册中间件  app.use，  app.route，  app.get （和其他HTTP动词）运行在这个阶段的开始。将此阶段也用于子应用程序，如   loopback/server/middleware/rest 或  loopback-explorer。
+
++ files - 提供静态资产（请求在此处访问文件系统）。
+
++ final - 处理错误和未知URL请求。
+除了主要阶段之外，每个阶段都具有“之前”和“之后”子阶段，在阶段名称之后编码，由冒号分隔。例如，对于“初始”阶段，中间件按以下顺序执行：
+1、initial:before 
+2、initial
+3、initial:after
+单个子阶段中的中间件按其注册的顺序执行。但是，你不应该依赖这样的命令。在订单重要时，始终使用适当的阶段明确订购中间件。
+
+### 常规中间件
+```
+module.exports = function() {
+  return function myMiddleware(req, res, next) {
+    // ...
+  }
+};
+```
+### 错误处理中间件
+```
+function myErrorHandler(err, req, res, next) {
+  // ...
+}
+```
+### 静态中间件的示例或条目，用于从multiple 项目根目录中的目录提供内容  ：
+
+```
+"files": {
+  "loopback#static": [{
+    "name": "x",
+    "paths": ["/x"],
+    "params": "$!../client/x"
+  },
+  {
+    "name": "y",
+    "paths": ["/y"],
+    "params": "$!../client/y"
+  }]
+}
+```
+要使用LoopBack阶段API注册中间件，请使用以下  app 方法：
+
++ middleware() 
++ middlewareFromConfig()`
++ defineMiddlewarePhases()
+例如：服务器/ server.js
+```
+var loopback = require('loopback');
+var morgan = require('morgan');
+
+var app = loopback();
+
+app.middleware('routes:before', morgan('dev'));
+app.middleware('routes', loopback.rest());
+```
+>> 预处理中间件
+```module.exports = function() {
+  return function tracker(req, res, next) {
+    console.log('Request tracking middleware triggered on %s', req.url);
+    var start = process.hrtime();
+    res.once('finish', function() {
+      var diff = process.hrtime(start);
+      var ms = diff[0] * 1e3 + diff[1] * 1e-6;
+      console.log('The request processing time is %d ms.', ms);
+    });
+    next();
+  };
+};
+```
+```
+{
+  "initial": {
+    "./middleware/tracker": {}
+  }
+}
+```
+## 错误处理程序
+```{
+  "final:after": {
+    "strong-error-handler": {
+      "params": {
+         "debug": false,
+         "log": true
+       }
+    }
+  }
+}
+```
++ 一般来说，strong-error-handler必须是最后注册的中间件功能;
