@@ -410,7 +410,7 @@ var user = loopback.Model.extend('user', properties, options);
     1、beforeRemote     在远程方法之前运行   
     2、afterRemote      在远程方法成功完成后运行。
     3、afterRemoteError 在远程方法完成并发生错误后运行
-    
+
 ```
     modelName.beforeRemote( methodName, function( ctx, next) {
         //...
@@ -580,3 +580,92 @@ app.middleware('routes', loopback.rest());
 }
 ```
 + 一般来说，strong-error-handler必须是最后注册的中间件功能;
+
+## loopback 组件
+### OAuth 2.0
++ OAuth 2.0提供身份验证和授权客户端应用程序和用户访问受保护的API端点。
++ Authorization server: 成功验证资源所有者并获得授权后，将访问令牌颁发给客户端。该组件实现OAuth 2.0协议端点，包括 授权端点 和 令牌端点。
++ Resource server: 承载受保护的资源，并能够使用访问令牌接受和响应受保护的资源请求。该组件提供中间件来保护API端点，以便只接受具有有效OAuth 2.0访问令牌的请求。它还建立身份，例如客户端应用程序ID和用户ID，以进一步访问控制和个性化。
++ 授权服务器可以是与资源服务器相同的服务器或单独的服务器。单个授权服务器可以发出由多个资源服务器接受的访问令牌。
+>> 安装
+```
+npm install loopback-component-oauth2
+```
+>> 使用
+```
+var oauth2 = require('loopback-component-oauth2');
+
+var options = {
+    dataSource: app.dataSources.db, // Data source for oAuth2 metadata persistence
+    loginPage: '/login', // The login page URL
+    loginPath: '/login' // The login form processing URL
+};
+
+oauth2.oAuth2Provider(
+    app, // The app instance
+    options // The options
+);
+```
+### 存储组件
+>> 安装
+```
+npm install loopback-component-storage
+```
+>> 本地存储
+```
+var ds = loopback.createDataSource({
+    connector: require('loopback-component-storage'),
+    provider: 'filesystem',
+    root: path.join(__dirname, 'storage')
+});
+
+var container = ds.createModel('container');
+```
+>> 亚马逊存储
+```
+var ds = loopback.createDataSource({
+    connector: require('loopback-component-storage'),
+    provider: 'amazon',
+    key: 'your amazon key',
+    keyId: 'your amazon key id'
+});
+var container = ds.createModel('container');
+app.model(container);
+```
+>> API
+```
+GET /api/containers 列出当前存储提供程序的所有容器
+
+GET /api/containers/<container-name>  获取有关指定容器的信息。
+
+POST /api/containers  使用当前存储提供程序创建新容器
+
+DELETE /api/containers/<container-name>  删除指定的容器
+
+GET /api/containers/<container-name>/files  按名称列出给定容器中的所有文件
+
+GET /api/containers/<container-name>/files/file-name  按名称获取给定容器中文件的信息
+
+DELETE /api/containers/container-name/files/file-name  删除指定容器中的指定文件
+
+POST /api/containers/container-name/upload  按名称将一个或多个文件上载到给定容器中。请求体应使用 HTML的文件输入类型使用的  multipart / form-data
+
+GET /api/containers/container-name/download/file-name  在指定容器中下载指定文件
+```
+>> 存储数据持久性
+```
+{
+  "db": {
+    "name": "db",
+    "connector": "memory",
+    "file": "mydata.json"
+  }
+}
+```
+```
+var memory = loopback.createDataSource({
+    connector: loopback.Memory,
+    file: "mydata.json"
+});
+```
++ 默认情况下，内存连接器中的数据是瞬态的。当使用内存连接器的应用程序退出时，所有模型实例都将丢失。要在应用程序重新启动之间维护数据，请file在创建数据源时指定一个JSON文件，在该文件中使用属性存储数据
